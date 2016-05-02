@@ -6,30 +6,23 @@ from tkinter import ttk
 root = Tk()
 root.title("ADB GA log formater")
 
-filter_frame = ttk.Frame(root, height=20, padding='3 3 3 3')
-filter_frame.grid(column=0, row=0, sticky=(N, W, E))
-filter_frame.columnconfigure(0, weight=1)
-filter_frame.rowconfigure(0, weight=1)
-
 mainframe = ttk.Frame(root, padding='3 3 3 3')
-mainframe.grid(column=0, row=1, sticky=(N, W, E, S))
+mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
 mainframe.columnconfigure(0, weight=1)
-mainframe.rowconfigure(0, weight=1)
+mainframe.rowconfigure(1, weight=1)
 
 filter_string = StringVar()
-
-filter_entry = ttk.Entry(filter_frame, textvariable=filter_string)
-filter_entry.grid(row=1, sticky=(W, N))
+filter_entry = ttk.Entry(mainframe, textvariable=filter_string)
+filter_entry.grid(row=0, columnspan=2, sticky=(W, N))
 
 log_text = Text(mainframe)
 log_text.grid(row=1, sticky=(N, W, E, S))
 log_text_scrollbar = ttk.Scrollbar(mainframe, orient=VERTICAL, command=log_text.yview)
-log_text_scrollbar.grid(column=2, row=1, sticky=(N,S))
+log_text_scrollbar.grid(column=1, row=1, sticky=(N,S))
 log_text['yscrollcommand'] = log_text_scrollbar.set
 
-# ttk.Sizegrip().grid(column=2, row=3, sticky=(S,E))
-root.grid_columnconfigure(0, weight=1)
-root.grid_rowconfigure(0, weight=1)
+root.columnconfigure(0, weight=1)
+root.rowconfigure(0, weight=1)
 
 filter_entry.focus()
 
@@ -64,8 +57,9 @@ class AsynchronousFileReader(threading.Thread):
             # self._queue.put(line.decode('utf-8').strip())
             parsed_dict = map_params(parse_params(line.decode('utf-8').strip()))
             if parsed_dict == {}: continue
-            log_text.insert(END, pformat(datetime.datetime.now()) + "\n")
+            log_text.insert(END, "\n" + pformat(datetime.datetime.now()) + "\n")
             log_text.insert(END, pformat(parsed_dict) + "\n")
+            log_text.see(END)
 
     def eof(self):
         '''Check whether there is no more content to expect.'''
