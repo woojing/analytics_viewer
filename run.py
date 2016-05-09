@@ -101,6 +101,7 @@ class AsynchronousFileReader(threading.Thread):
 # You'll need to add any command line arguments here.
 startupinfo = subprocess.STARTUPINFO()
 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+subprocess.Popen(['adb', 'shell', 'setprop', 'log.tag.GAv4', 'DEBUG'], env=os.environ)
 process = subprocess.Popen(['adb', "logcat", "-s", "GAv4"], stdout=subprocess.PIPE,
                            startupinfo=startupinfo,
                            env=os.environ)
