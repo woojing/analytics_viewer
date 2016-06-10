@@ -5,16 +5,17 @@ import threading
 import sys
 import os
 import datetime
+from unittest.mock import MagicMock
 from tkinter import *
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
 from pprint import pprint, pformat
 
-from helper import parse_params, map_params
-
+from helper import parse_params, map_params, parse_ios_params, ios_chunk
+from helper import is_ios, is_android
 
 root = Tk()
-root.title("ADB GA log formater")
+root.title("GA log formater")
 
 mainframe = ttk.Frame(root, padding='3 3 3 3')
 mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
@@ -74,10 +75,21 @@ class AsynchronousFileReader(threading.Thread):
 
     def run(self):
         '''The body of the tread: read lines and put them on the queue.'''
-        for line in iter(self._fd.readline, None):
-            if line == b'': break
+        #for line in iter(self._fd.readline, None):
+        #    if line == b'': break
             # self._queue.put(line.decode('utf-8').strip())
-            parsed_dict = map_params(parse_params(line.decode('utf-8').strip()))
+        while True:
+            if is_ios():
+                chunk = ios_chunk(iter(self._fd.readline, None))
+                chunk = '\n'.join([str(line.replace(b'\U', b'\u'), encoding='unicode_escape') for line in chunk])
+                parsed_dict = map_params(parse_ios_params(chunk))
+            elif is_android():
+                line = next(iter(self._fd.readline, None))
+                if line == b'': break
+                parsed_dict = map_params(parse_params(line.decode('utf-8').strip()))
+            else:
+                line = self._fd.readline()
+                parsed_dict = {'Warning': line.strip()}
             if parsed_dict == {}: continue
             track_id = parsed_dict.get('Tracking ID / Web Property ID')
             if track_id:
@@ -99,13 +111,30 @@ class AsynchronousFileReader(threading.Thread):
 
 
 # You'll need to add any command line arguments here.
-startupinfo = subprocess.STARTUPINFO()
-startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-subprocess.Popen(['adb', 'shell', 'setprop', 'log.tag.GAv4', 'DEBUG'], env=os.environ)
-process = subprocess.Popen(['adb', "logcat", "-s", "GAv4"], stdout=subprocess.PIPE,
-                           startupinfo=startupinfo,
-                           env=os.environ)
+if getattr(subprocess, 'STARTUPINFO', None):
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+else:
+    startupinfo = None
 
+if is_android():
+    subprocess.Popen(['adb', 'shell', 'setprop', 'log.tag.GAv4', 'DEBUG'],
+                     env=os.environ)
+    process = subprocess.Popen(['adb', "logcat", "-s", "GAv4"],
+                               stdout=subprocess.PIPE,
+                               startupinfo=startupinfo,
+                               env=os.environ)
+elif is_ios():
+    process = subprocess.Popen(['idevicesyslog'], stdout=subprocess.PIPE, env=os.environ)
+else:
+    process = MagicMock()
+    description = '''
+    Not found iOS or Android device
+    Check USB cable connection
+    or check install of 'adb' or 'libimobiledevice'
+    '''
+    desc_iter = iter(description.split('\n'))
+    process.stdout.readline = lambda :next(desc_iter)
 # Launch the asynchronous readers of the process' stdout.
 stdout_queue = queue.Queue()
 stdout_reader = AsynchronousFileReader(process.stdout, stdout_queue)

@@ -1,6 +1,21 @@
 # -*- coding: utf-8 -*-
+import os
 import re
+import itertools
+import subprocess
+import functools
 
+def ios_chunk(line_it):
+    chunk_start = b': GoogleAnalytics '
+    chunk_end = b'timestamp = '
+    it = itertools.dropwhile(lambda x: chunk_start not in x, line_it)
+    next(it)
+    return itertools.takewhile(lambda x: chunk_end not in x, it)
+
+def parse_ios_params(chunk):
+    param_pattern = re.compile(r'"&([^\s.]*?)"\s=\s"*(.*?)"*;')
+    params = param_pattern.findall(chunk)
+    return dict(params)
 
 def parse_params(line):
     param_pattern = re.compile(r'([^\s.]*?)=([^,]*)')
@@ -137,3 +152,29 @@ def map_params(params):
             result_dict[vp % pattern_match.groups()] = v
             break
     return result_dict
+
+@functools.lru_cache()
+def is_ios():
+    try:
+        proc = subprocess.Popen(['idevice_id', '-l'], env=os.environ, stdout=subprocess.PIPE)
+    except FileNotFoundError:
+        return False
+    output, error = proc.communicate()
+    output = output.splitlines()
+    if len(output) > 0:
+        return True
+    else:
+        return False
+
+@functools.lru_cache()
+def is_android():
+    try:
+        proc = subprocess.Popen(['adb', 'devices'], env=os.environ, stdout=subprocess.PIPE)
+    except FileNotFoundError:
+        return False
+    output, error = proc.communicate()
+    output = output.splitlines()
+    if len(output) > 2:
+        return True
+    else:
+        return False
